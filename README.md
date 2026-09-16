@@ -119,6 +119,8 @@ a domain name and ports 80+443 forwarded to it. Everything below is free.
    ```
    Caddy fetches a Let's Encrypt certificate automatically on the first
    request and renews it forever. `curl https://yourname.duckdns.org/health`.
+   HTTPS-only (no port 80) is fine: Caddy then uses the TLS-ALPN challenge
+   on 443 instead of the HTTP challenge.
 4. **Lock it down:** set `TUIMESSAGER_ALLOW_REGISTRATION=false` in
    `compose.yaml` after creating your account, then
    `podman compose --profile public up -d` again.
