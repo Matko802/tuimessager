@@ -20,7 +20,7 @@ chrono = { workspace = true }
 uuid = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-manual-roots"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-native-roots"] }
 tokio-tungstenite = { version = "0.26", features = ["connect", "rustls-tls-native-roots"] }
 futures-util = "0.3"
 toml = "1"
