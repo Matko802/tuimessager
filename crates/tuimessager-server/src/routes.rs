@@ -25,6 +25,11 @@ pub struct AppState {
     pub db: Arc<Mutex<rusqlite::Connection>>,
     pub events: broadcast::Sender<WsEvent>,
     pub allow_registration: bool,
+    pub data_dir: std::path::PathBuf,
+}
+
+fn avatar_path(state: &AppState, user_id: &str) -> std::path::PathBuf {
+    state.data_dir.join("avatars").join(user_id)
 }
 
 type ApiResult<T> = Result<T, (StatusCode, String)>;
@@ -159,6 +164,119 @@ async fn logout(State(state): State<AppState>, headers: HeaderMap) -> ApiResult<
     conn.execute("DELETE FROM tokens WHERE token=?1", params![token])
         .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+async fn update_me(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<UpdateMeRequest>,
+) -> ApiResult<Json<User>> {
+    let user = auth_user(&state, &headers).await?;
+    let conn = state.db.lock().await;
+    if let Some(name) = req.display_name {
+        if name.len() > 64 {
+            return Err(err(StatusCode::BAD_REQUEST, "display name too long"));
+        }
+        let name: Option<String> = (!name.trim().is_empty()).then_some(name.trim().to_string());
+        conn.execute("UPDATE users SET display_name=?1 WHERE id=?2", params![name, user.id.to_string()])
+            .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    }
+    if let Some(password) = req.password {
+        if password.len() < 4 {
+            return Err(err(StatusCode::BAD_REQUEST, "password too short"));
+        }
+        let hash = auth::hash_password(&password)
+            .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        conn.execute("UPDATE users SET password_hash=?1 WHERE id=?2", params![hash, user.id.to_string()])
+            .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        // Changing the password kills all other sessions (not the current one).
+        let token = headers
+            .get("authorization")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.strip_prefix("Bearer "))
+            .unwrap_or("");
+        conn.execute(
+            "DELETE FROM tokens WHERE user_id=?1 AND token!=?2",
+            params![user.id.to_string(), token],
+        )
+        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    }
+    let user = db::user_by_id(&conn, &user.id.to_string())
+        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .unwrap();
+    Ok(Json(user))
+}
+
+fn sniff_avatar_mime(bytes: &[u8]) -> Option<&'static str> {
+    if bytes.starts_with(&[0x89, b'P', b'N', b'G']) {
+        Some("image/png")
+    } else if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
+        Some("image/jpeg")
+    } else if bytes.starts_with(b"GIF8") {
+        Some("image/gif")
+    } else if bytes.len() > 12 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WEBP" {
+        Some("image/webp")
+    } else {
+        None
+    }
+}
+
+async fn set_avatar(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<SetAvatarRequest>,
+) -> ApiResult<Json<User>> {
+    use base64::Engine;
+    let user = auth_user(&state, &headers).await?;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(req.data_base64.trim())
+        .map_err(|_| err(StatusCode::BAD_REQUEST, "invalid base64"))?;
+    if bytes.is_empty() || bytes.len() > 1_000_000 {
+        return Err(err(StatusCode::BAD_REQUEST, "image must be 1 byte–1 MiB"));
+    }
+    if sniff_avatar_mime(&bytes).is_none() {
+        return Err(err(StatusCode::BAD_REQUEST, "image must be PNG, JPEG, GIF or WebP"));
+    }
+    let path = avatar_path(&state, &user.id.to_string());
+    if let Some(parent) = path.parent() {
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    }
+    tokio::fs::write(&path, &bytes)
+        .await
+        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let conn = state.db.lock().await;
+    conn.execute("UPDATE users SET avatar=1 WHERE id=?1", params![user.id.to_string()])
+        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let user = db::user_by_id(&conn, &user.id.to_string())
+        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .unwrap();
+    Ok(Json(user))
+}
+
+async fn delete_avatar(State(state): State<AppState>, headers: HeaderMap) -> ApiResult<impl IntoResponse> {
+    let user = auth_user(&state, &headers).await?;
+    let _ = tokio::fs::remove_file(avatar_path(&state, &user.id.to_string())).await;
+    let conn = state.db.lock().await;
+    conn.execute("UPDATE users SET avatar=0 WHERE id=?1", params![user.id.to_string()])
+        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn get_avatar(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
+    // Public (like most chat CDNs): small images, cacheable for a day.
+    let bytes = tokio::fs::read(avatar_path(&state, &id.to_string()))
+        .await
+        .map_err(|_| err(StatusCode::NOT_FOUND, "no avatar"))?;
+    let mime = sniff_avatar_mime(&bytes).unwrap_or("application/octet-stream");
+    let mut headers = HeaderMap::new();
+    headers.insert("content-type", mime.parse().unwrap());
+    headers.insert("cache-control", "public, max-age=86400".parse().unwrap());
+    Ok((headers, bytes))
 }
 
 async fn list_servers(State(state): State<AppState>, headers: HeaderMap) -> ApiResult<Json<Vec<Server>>> {
@@ -753,7 +871,9 @@ pub fn router(state: AppState) -> Router {
         .route("/health", get(health))
         .route("/api/v1/register", post(register))
         .route("/api/v1/login", post(login))
-        .route("/api/v1/me", get(me))
+        .route("/api/v1/me", get(me).patch(update_me))
+        .route("/api/v1/me/avatar", post(set_avatar).delete(delete_avatar))
+        .route("/api/v1/users/{id}/avatar", get(get_avatar))
         .route("/api/v1/logout", post(logout))
         .route("/api/v1/servers", get(list_servers).post(create_server))
         .route("/api/v1/servers/{id}/channels", get(list_channels).post(create_channel))
@@ -774,18 +894,18 @@ mod tests {
     use http_body_util::BodyExt;
     use tower::ServiceExt;
 
-    async fn test_router() -> Router {
+    async fn test_router() -> (Router, tempfile::TempDir) {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("test.db");
-        // Keep dir alive for the test duration.
-        std::mem::forget(dir);
         let conn = crate::db::open(&path).unwrap();
         let (tx, _) = tokio::sync::broadcast::channel::<WsEvent>(16);
-        router(AppState {
+        let router = router(AppState {
             db: Arc::new(Mutex::new(conn)),
             events: tx,
             allow_registration: true,
-        })
+            data_dir: dir.path().to_path_buf(),
+        });
+        (router, dir)
     }
 
     async fn body_json(res: axum::response::Response) -> serde_json::Value {
@@ -803,7 +923,7 @@ mod tests {
 
     #[tokio::test]
     async fn full_api_smoke() {
-        let app = test_router().await;
+        let (app, _dir) = test_router().await;
 
         // health
         let res = app
@@ -944,6 +1064,67 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(res.status(), StatusCode::OK);
+
+        // update display name
+        let res = app
+            .clone()
+            .oneshot(json_req(
+                "PATCH",
+                "/api/v1/me",
+                Some(&token),
+                serde_json::json!({"display_name": "Alice Liddell"}),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        let me = body_json(res).await;
+        assert_eq!(me["display_name"], "Alice Liddell");
+
+        // upload avatar (1x1 PNG)
+        const TINY_PNG_B64: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+        let res = app
+            .clone()
+            .oneshot(json_req(
+                "POST",
+                "/api/v1/me/avatar",
+                Some(&token),
+                serde_json::json!({"data_base64": TINY_PNG_B64}),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        let me = body_json(res).await;
+        let avatar_path = me["avatar_url"].as_str().unwrap().to_string();
+        assert!(avatar_path.ends_with("/avatar"));
+
+        // serve avatar bytes
+        let res = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(avatar_path)
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(res.headers()["content-type"], "image/png");
+
+        // delete avatar
+        let res = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/api/v1/me/avatar")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::NO_CONTENT);
 
         // delete
         let res = app

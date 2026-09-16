@@ -82,6 +82,12 @@ fn init_schema(conn: &Connection) -> Result<()> {
         );
         "#,
     )?;
+    // Migration for databases created before avatars / account settings.
+    if let Err(e) = conn.execute("ALTER TABLE users ADD COLUMN avatar INTEGER NOT NULL DEFAULT 0", []) {
+        if !e.to_string().contains("duplicate column name") {
+            return Err(e.into());
+        }
+    }
     Ok(())
 }
 
@@ -108,7 +114,7 @@ fn seed_if_empty(conn: &Connection) -> Result<()> {
 
 pub fn user_by_id(conn: &Connection, id: &str) -> Result<Option<User>> {
     conn.query_row(
-        "SELECT id, name, display_name, bot, created_at FROM users WHERE id=?1",
+        "SELECT id, name, display_name, bot, created_at, avatar FROM users WHERE id=?1",
         params![id],
         map_user,
     )
@@ -118,19 +124,21 @@ pub fn user_by_id(conn: &Connection, id: &str) -> Result<Option<User>> {
 
 pub fn user_by_name(conn: &Connection, name: &str) -> Result<Option<(User, String)>> {
     conn.query_row(
-        "SELECT id, name, display_name, bot, created_at, password_hash FROM users WHERE name=?1",
+        "SELECT id, name, display_name, bot, created_at, avatar, password_hash FROM users WHERE name=?1",
         params![name],
         |r| {
+            let id: String = r.get(0)?;
+            let has_avatar: i64 = r.get(5)?;
             Ok((
                 User {
-                    id: r.get::<_, String>(0)?.parse().map_err(|_| rusqlite::Error::InvalidColumnType(0, "uuid".into(), rusqlite::types::Type::Text))?,
+                    id: id.parse().map_err(|_| rusqlite::Error::InvalidColumnType(0, "uuid".into(), rusqlite::types::Type::Text))?,
                     name: r.get(1)?,
                     display_name: r.get(2)?,
-                    avatar_url: None,
+                    avatar_url: avatar_url(&id, has_avatar),
                     bot: r.get::<_, i64>(3)? != 0,
                     created_at: r.get::<_, String>(4)?.parse().unwrap_or_else(|_| Utc::now()),
                 },
-                r.get::<_, String>(5)?,
+                r.get::<_, String>(6)?,
             ))
         },
     )
@@ -138,12 +146,19 @@ pub fn user_by_name(conn: &Connection, name: &str) -> Result<Option<(User, Strin
     .map_err(anyhow::Error::from)
 }
 
+/// API path serving the avatar file, or None when the user has none.
+pub fn avatar_url(id: &str, has_avatar: i64) -> Option<String> {
+    (has_avatar != 0).then(|| format!("/api/v1/users/{id}/avatar"))
+}
+
 fn map_user(r: &rusqlite::Row) -> rusqlite::Result<User> {
+    let id: String = r.get(0)?;
+    let has_avatar: i64 = r.get(5)?;
     Ok(User {
-        id: r.get::<_, String>(0)?.parse().unwrap_or_else(|_| Uuid::nil()),
+        id: id.parse().unwrap_or_else(|_| Uuid::nil()),
         name: r.get(1)?,
         display_name: r.get(2)?,
-        avatar_url: None,
+        avatar_url: avatar_url(&id, has_avatar),
         bot: r.get::<_, i64>(3)? != 0,
         created_at: r.get::<_, String>(4)?.parse().unwrap_or_else(|_| chrono::Utc::now()),
     })

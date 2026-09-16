@@ -346,12 +346,47 @@ fn draw_popup(f: &mut Frame, app: &App) {
                 Line::from("Voice: placeholder in v1 (no audio yet) · threads via #channels"),
             ],
         ),
+        Popup::Profile => {
+            let avatar = if app.me.avatar_url.is_some() { "set" } else { "not set" };
+            let actions = [
+                "Set display name (type below, Enter)",
+                "Set password (type below, Enter)",
+                "Upload avatar (type image path below, Enter)",
+                "Remove avatar",
+                "Log out",
+            ];
+            let mut rows = vec![
+                Line::from(vec![
+                    Span::styled(app.me.display().to_string(), Style::new().bold()),
+                    Span::styled(
+                        format!(" (@{}) · avatar: {avatar}", app.me.name),
+                        Style::new().fg(Color::DarkGray),
+                    ),
+                ]),
+                Line::from(""),
+            ];
+            for (i, label) in actions.iter().enumerate() {
+                let marker = if i == app.popup_idx { sel_marker(app) } else { "  " };
+                rows.push(Line::from(vec![
+                    Span::styled(marker, Style::new().fg(Color::Cyan).bold()),
+                    Span::raw(label.to_string()),
+                ]));
+            }
+            ("Profile & account settings (Space p)", rows)
+        }
         Popup::None | Popup::ConfirmDelete | Popup::ConfirmLogout => ("", vec![]),
     };
-    let mut text = vec![Line::from(Span::styled(
-        format!("Filter: {}", app.popup_input),
-        Style::new().fg(Color::DarkGray),
-    ))];
+    let header = if app.popup == Popup::Profile {
+        let shown = if app.popup_idx == 1 {
+            "•".repeat(app.popup_input.chars().count())
+        } else {
+            app.popup_input.clone()
+        };
+        format!("Value: {shown}▊")
+    } else {
+        format!("Filter: {}", app.popup_input)
+    };
+    let mut text = vec![Line::from(Span::styled(header, Style::new().fg(Color::DarkGray)))];
     text.extend(items);
     let w = Paragraph::new(text).block(pane_block(title, true)).wrap(Wrap { trim: false });
     f.render_widget(w, area);
@@ -391,7 +426,7 @@ fn help_lines() -> Vec<Line<'static>> {
         Line::from("Ctrl-d/u half-page · i compose · Enter send · Esc close"),
         Line::from("/ search · y copy · r react · R reply · e edit · d delete"),
         Line::from("o open URL · Space Space switcher · Space a actions"),
-        Line::from("Space n inbox · Space o options · Space p profile · Space r redraw"),
+        Line::from("Space n inbox · Space o options · Space p profile & settings · Space r redraw"),
         Line::from("Space l log out · Space v voice placeholder"),
         Line::from("Voice channels are UI placeholders in v1 (self-hosted audio roadmap)"),
     ]

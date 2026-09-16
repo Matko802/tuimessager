@@ -20,11 +20,17 @@ async fn main() -> anyhow::Result<()> {
     let cfg = config::Config::from_env();
     tracing::info!("opening database at {}", cfg.database_path.display());
     let conn = db::open(&cfg.database_path)?;
+    let data_dir = cfg
+        .database_path
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| std::path::PathBuf::from("."));
     let (tx, _) = broadcast::channel::<WsEvent>(256);
     let state = routes::AppState {
         db: Arc::new(Mutex::new(conn)),
         events: tx,
         allow_registration: cfg.allow_registration,
+        data_dir,
     };
 
     let app = routes::router(state).layer(CorsLayer::permissive());

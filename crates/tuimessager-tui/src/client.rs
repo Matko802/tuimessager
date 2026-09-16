@@ -140,6 +140,45 @@ impl Client {
         Ok(())
     }
 
+    pub async fn update_me(&self, display_name: Option<String>, password: Option<String>) -> anyhow::Result<User> {
+        let res = self
+            .http
+            .patch(format!("{}/api/v1/me", self.base))
+            .bearer_auth(&self.token)
+            .json(&UpdateMeRequest { display_name, password })
+            .send()
+            .await?;
+        check(res).await?.json().await.map_err(anyhow::Error::from)
+    }
+
+    pub async fn set_avatar_path(&self, path: &str) -> anyhow::Result<User> {
+        let bytes = std::fs::read(path)?;
+        if bytes.is_empty() || bytes.len() > 1_000_000 {
+            anyhow::bail!("image must be 1 byte–1 MiB");
+        }
+        use base64::Engine;
+        let data_base64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+        let res = self
+            .http
+            .post(format!("{}/api/v1/me/avatar", self.base))
+            .bearer_auth(&self.token)
+            .json(&SetAvatarRequest { data_base64 })
+            .send()
+            .await?;
+        check(res).await?.json().await.map_err(anyhow::Error::from)
+    }
+
+    pub async fn delete_avatar(&self) -> anyhow::Result<()> {
+        let res = self
+            .http
+            .delete(format!("{}/api/v1/me/avatar", self.base))
+            .bearer_auth(&self.token)
+            .send()
+            .await?;
+        check(res).await?;
+        Ok(())
+    }
+
     pub async fn login(base: &str, name: &str, password: &str) -> anyhow::Result<AuthResponse> {
         let res = reqwest::Client::new()
             .post(format!("{}/api/v1/login", base.trim_end_matches('/')))

@@ -169,6 +169,20 @@ pub struct EditMessageRequest {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateMeRequest {
+    /// Some(name) sets a new display name (empty clears it); None = no change.
+    pub display_name: Option<String>,
+    /// Some(password) sets a new password (min 4 chars); None = no change.
+    pub password: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SetAvatarRequest {
+    /// Raw image bytes (PNG, JPEG, GIF or WebP), base64-encoded. Max 1 MiB decoded.
+    pub data_base64: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct MessagesPage {
     pub items: Vec<Message>,
     pub has_more: bool,

@@ -3,14 +3,13 @@
 mod app;
 mod client;
 mod config;
+mod login;
 mod markdown;
 mod ui;
 
 use std::{io::Stdout, time::Duration};
 
 use app::{App, Focus, Popup};
-use client::Client;
-use config::AppOptions;
 use crossterm::{
     event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
     execute,
@@ -41,7 +40,7 @@ async fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let (client, me) = login_flow(&options).await?;
+    let (client, me) = login::login_flow_tui(&options).await?;
     let mut app = App::new(options, client, me);
     app.refresh_servers().await;
     app.refresh_channels().await;
@@ -80,64 +79,6 @@ async fn ws_loop(url: &str, tx: &tokio::sync::mpsc::UnboundedSender<WsEvent>) ->
         }
     }
     Ok(())
-}
-
-async fn login_flow(options: &AppOptions) -> anyhow::Result<(Client, tuimessager_protocol::User)> {
-    if let Some(token) = config::load_token(options) {
-        let client = Client::new(options.server_url.clone(), token);
-        if let Ok(me) = client.me().await {
-            return Ok((client, me));
-        }
-        eprintln!("saved token invalid, please log in again");
-    }
-    // Simple stdin login (TUI login screen parity without Discord QR/MFA/captcha).
-    println!("tuimessager — self-hosted server (no Discord)");
-    println!("server: {}", options.server_url);
-    let name = prompt("username: ")?;
-    let password = rpassword_prompt("password: ")?;
-    // Try login, fall back to register.
-    match Client::login(&options.server_url, &name, &password).await {
-        Ok(auth) => {
-            config::save_token(&auth.token)?;
-            Ok((Client::new(options.server_url.clone(), auth.token), auth.user))
-        }
-        Err(_) => {
-            println!("login failed, trying register…");
-            let auth = Client::register(&options.server_url, &name, &password).await?;
-            config::save_token(&auth.token)?;
-            Ok((Client::new(options.server_url.clone(), auth.token), auth.user))
-        }
-    }
-}
-
-fn prompt(label: &str) -> anyhow::Result<String> {
-    use std::io::Write;
-    print!("{label}");
-    std::io::stdout().flush()?;
-    let mut s = String::new();
-    std::io::stdin().read_line(&mut s)?;
-    Ok(s.trim().to_string())
-}
-
-fn rpassword_prompt(label: &str) -> anyhow::Result<String> {
-    // Avoid extra dep: disable echo via stty when available.
-    #[cfg(unix)]
-    {
-        use std::io::Write;
-        print!("{label}");
-        std::io::stdout().flush()?;
-        let stty = std::process::Command::new("stty").arg("-echo").stdin(std::process::Stdio::inherit()).status();
-        let mut s = String::new();
-        std::io::stdin().read_line(&mut s)?;
-        let _ = std::process::Command::new("stty").arg("echo").stdin(std::process::Stdio::inherit()).status();
-        println!();
-        let _ = stty;
-        return Ok(s.trim().to_string());
-    }
-    #[cfg(not(unix))]
-    {
-        return prompt(label);
-    }
 }
 
 fn setup_terminal() -> anyhow::Result<Terminal<CrosstermBackend<Stdout>>> {
@@ -308,7 +249,9 @@ async fn handle_key(app: &mut App, key: KeyEvent, leader_pending: &mut bool, lea
             }
             KeyCode::Char('o') => app.popup = Popup::Help,
             KeyCode::Char('p') => {
-                app.status = format!("{} ({})", app.me.display(), app.me.name);
+                app.popup = Popup::Profile;
+                app.popup_input.clear();
+                app.popup_idx = 0;
             }
             KeyCode::Char('r') => {
                 // Redraw: ratatui handles it next frame.
@@ -572,6 +515,62 @@ async fn activate_popup(app: &mut App) {
         }
         Popup::Inbox => {
             app.popup = Popup::None;
+        }
+        Popup::Profile => {
+            // Up/Down picks an action (popup_idx); the input line is its value.
+            match app.popup_idx {
+                0 => {
+                    let v = app.popup_input.trim().to_string();
+                    match app.client.update_me(Some(v), None).await {
+                        Ok(u) => {
+                            app.me = u;
+                            app.status = "display name updated".to_string();
+                        }
+                        Err(e) => app.status = format!("profile: {e:#}"),
+                    }
+                }
+                1 => {
+                    let v = app.popup_input.clone();
+                    app.popup_input.clear();
+                    if v.len() < 4 {
+                        app.status = "password must be 4+ chars".to_string();
+                    } else {
+                        match app.client.update_me(None, Some(v)).await {
+                            Ok(u) => {
+                                app.me = u;
+                                app.status = "password changed (other sessions logged out)".to_string();
+                            }
+                            Err(e) => app.status = format!("profile: {e:#}"),
+                        }
+                    }
+                }
+                2 => {
+                    let v = app.popup_input.trim().to_string();
+                    match app.client.set_avatar_path(&v).await {
+                        Ok(u) => {
+                            app.me = u;
+                            app.status = "avatar uploaded".to_string();
+                        }
+                        Err(e) => app.status = format!("avatar: {e:#}"),
+                    }
+                }
+                3 => match app.client.delete_avatar().await {
+                    Ok(()) => {
+                        app.me.avatar_url = None;
+                        app.status = "avatar removed".to_string();
+                    }
+                    Err(e) => app.status = format!("avatar: {e:#}"),
+                },
+                _ => {
+                    // Log out.
+                    app.popup = Popup::ConfirmLogout;
+                    app.popup_input.clear();
+                    app.popup_idx = 0;
+                    return;
+                }
+            }
+            app.popup = Popup::None;
+            app.popup_input.clear();
         }
         _ => {
             app.popup = Popup::None;

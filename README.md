@@ -54,7 +54,9 @@ Set `TUIMESSAGER_ALLOW_REGISTRATION: "false"` in `compose.yaml` after creating y
 TUIMESSAGER_URL=https://tuimessager.duckdns.org tuimessager
 ```
 
-First launch registers your account. Config lives in `~/.config/tuimessager/config.toml` (`--init-config`, `--check-config`).
+First launch shows a login screen (`Tab` move, `Enter` submit, `F2` login/register). Saved tokens skip it next time.
+
+`Space p` opens profile & account settings: display name, password change, avatar upload from a local image path, avatar removal.
 
 | Key | Action |
 |---|---|
@@ -63,7 +65,7 @@ First launch registers your account. Config lives in `~/.config/tuimessager/conf
 | `i`, `Enter`, `Esc` | compose, send, close |
 | `/`, `:`, `Space Space` | search, emoji, channel switcher |
 | `y`, `r`, `R`, `e`, `d`, `o` | copy, react, reply, edit, delete, open URL |
-| `Space a` / `n` / `p` / `l` | actions, inbox, profile, log out |
+| `Space a` / `n` / `p` / `l` | actions, inbox, profile & settings, log out |
 | `q` | quit |
 
 Env: `TUIMESSAGER_URL`, `TUIMESSAGER_TOKEN`, server-side `TUIMESSAGER_BIND`, `TUIMESSAGER_DATA_DIR`, `TUIMESSAGER_ALLOW_REGISTRATION`.

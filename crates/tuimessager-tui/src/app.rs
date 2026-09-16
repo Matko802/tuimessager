@@ -46,6 +46,7 @@ pub enum Popup {
     Emoji,
     ConfirmDelete,
     ConfirmLogout,
+    Profile,
     MessageActions,
 }
 

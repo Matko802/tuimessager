@@ -3344,6 +3344,7 @@ dependencies = [
  "anyhow",
  "argon2",
  "axum",
+ "base64 0.22.1",
  "chrono",
  "futures",
  "http-body-util",
@@ -3367,6 +3368,7 @@ name = "tuimessager-tui"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64 0.22.1",
  "chrono",
  "crossterm",
  "dirs",
