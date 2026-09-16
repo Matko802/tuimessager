@@ -5,13 +5,13 @@
 # Setup:
 #   1. Log in at https://www.duckdns.org and copy your account token.
 #   2. Run once by hand to verify:
-#        TOKEN=your-token-here ./duckdns-update.sh tuidns
+#        TOKEN=your-token-here ./duckdns-update.sh tuimessager
 #   3. Cron (runs every 5 minutes):
 #        crontab -e
-#        */5 * * * * TOKEN=your-token-here /home/pi/tuimessager/duckdns-update.sh tuidns >> /home/pi/duckdns.log 2>&1
+#        */5 * * * * TOKEN=your-token-here /home/pi/tuimessager/duckdns-update.sh tuimessager >> /home/pi/duckdns.log 2>&1
 set -euo pipefail
 TOKEN="${TOKEN:?set TOKEN to your duckdns.org account token}"
-DOMAINS="${1:-${DUCKDNS_DOMAINS:-tuidns}}"
+DOMAINS="${1:-${DUCKDNS_DOMAINS:-tuimessager}}"
 OUT="$(curl -s "https://www.duckdns.org/update?domains=${DOMAINS}&token=${TOKEN}&ip=")"
 if [ "$OUT" = "OK" ]; then
   echo "$(date -Is) duckdns ${DOMAINS}: OK"

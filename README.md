@@ -150,8 +150,8 @@ Assumes the Pi is at home on your LAN and your domain is
    https://www.duckdns.org, then on the Pi:
    ```sh
    cd ~/tuimessager
-   TOKEN=paste-your-token-here ./duckdns-update.sh tuidns   # expect "OK"
-   (crontab -l 2>/dev/null; echo '*/5 * * * * TOKEN=paste-your-token-here /home/pi/tuimessager/duckdns-update.sh tuidns >> /home/pi/duckdns.log 2>&1') | crontab -
+   TOKEN=paste-your-token-here ./duckdns-update.sh tuimessager   # expect "OK"
+   (crontab -l 2>/dev/null; echo '*/5 * * * * TOKEN=paste-your-token-here /home/pi/tuimessager/duckdns-update.sh tuimessager >> /home/pi/duckdns.log 2>&1') | crontab -
    ```
 5. **Build (native arm64) and launch with free TLS:**
    ```sh
