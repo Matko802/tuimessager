@@ -1,17 +1,22 @@
 # Quadlet for Podman systemd (PC and Raspberry Pi 5 identical except Arch).
-# Install: cp quadlet/tuimessager-server.* ~/.config/containers/systemd/ && systemctl --user daemon-reload
+# Single container: server always, Caddy + free TLS when TUIMESSAGER_DOMAIN set.
+# Install: cp quadlet/tuimessager.* ~/.config/containers/systemd/ && systemctl --user daemon-reload
 [Unit]
-Description=tuimessager self-hosted server
+Description=tuimessager self-hosted server (+ Caddy when configured)
 After=network-online.target
 Wants=network-online.target
 
 [Container]
-Image=localhost/tuimessager-server.latest
-ContainerName=tuimessager-server
+Image=localhost/tuimessager:latest
+ContainerName=tuimessager
 PublishPort=3000:3000
+PublishPort=80:80
+PublishPort=443:443
 Volume=tuimessager-data.volume:/data:U
 Environment=TUIMESSAGER_DATA_DIR=/data
 Environment=TUIMESSAGER_ALLOW_REGISTRATION=true
+# Uncomment for public free-TLS mode:
+#Environment=TUIMESSAGER_DOMAIN=chat.example.com
 HealthCmd=/bin/bash -c 'exec 3<>/dev/tcp/127.0.0.1/3000 && printf "GET /health HTTP/1.0\r\n\r\n" >&3 && head -n 1 <&3 | grep -q " 200 "'
 HealthInterval=30s
 

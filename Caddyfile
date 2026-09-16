@@ -1,10 +1,16 @@
 # Caddy reverse proxy for tuimessager — 100% free automatic TLS via Let's Encrypt.
 #
-# The domain is injected from the TUIMESSAGER_DOMAIN env var (see compose.yaml).
-# Caddy obtains and renews the certificate on first request; nothing to pay,
-# nothing to renew by hand. HTTP is redirected to HTTPS automatically.
+# Runs in the SAME container as tuimessager-server (see run.sh), proxying to
+# it over loopback. Started only when TUIMESSAGER_DOMAIN is set; empty = LAN
+# mode, server alone on :3000.
+{
+	storage file_system {
+		root /data/caddy
+	}
+}
+
 {$TUIMESSAGER_DOMAIN} {
-	reverse_proxy server:3000
+	reverse_proxy 127.0.0.1:3000
 
 	# Don't leak the backend version; small hardening header set.
 	header {

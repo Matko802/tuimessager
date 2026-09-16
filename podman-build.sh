@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build + run tuimessager-server with Podman.
+# Build the combined tuimessager image (server + Caddy).
 # Usage:
 #   ./podman-build.sh            # native arch (PC x86_64 or RPi5 aarch64)
 #   ./podman-build.sh arm64      # cross for Raspberry Pi 5 from PC
@@ -13,8 +13,8 @@ case "$ARCH" in
   *) echo "unknown arch: $ARCH (want arm64|amd64|native)"; exit 1 ;;
 esac
 if [ -n "$PLATFORM" ]; then
-  podman build --platform "$PLATFORM" -f Containerfile.server -t tuimessager-server:latest .
+  podman build --platform "$PLATFORM" -f Containerfile.server -t tuimessager:latest .
 else
-  podman build -f Containerfile.server -t tuimessager-server:latest .
+  podman build -f Containerfile.server -t tuimessager:latest .
 fi
-echo "built tuimessager-server:latest ($ARCH)"
+echo "built tuimessager:latest ($ARCH)"

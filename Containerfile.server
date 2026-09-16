@@ -1,5 +1,7 @@
-# tuimessager-server — multi-arch (amd64 = PC, arm64 = Raspberry Pi 5)
-# Podman: podman build -f Containerfile.server -t tuimessager-server .
+# tuimessager — single multi-arch image (amd64 = PC, arm64 = Raspberry Pi 5).
+# Contains tuimessager-server + Caddy (free auto-TLS), supervised by tini via
+# run.sh. Caddy starts only when TUIMESSAGER_DOMAIN is set; otherwise the
+# container is just the server on :3000.
 ARG RUST_VERSION=1.90
 FROM docker.io/library/rust:${RUST_VERSION}-slim-bookworm AS builder
 WORKDIR /work
@@ -9,14 +11,20 @@ COPY Cargo.toml Cargo.lock* ./
 COPY crates ./crates
 RUN cargo build --release -p tuimessager-server --locked || cargo build --release -p tuimessager-server
 
+# Official Caddy (statically built Go binary — runs on any libc, any arch).
+FROM docker.io/library/caddy:2-alpine AS caddy
+
 FROM docker.io/library/debian:bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates sqlite3 && rm -rf /var/lib/apt/lists/* \
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates sqlite3 tini && rm -rf /var/lib/apt/lists/* \
     && useradd -m -u 10000 tuimsg
 USER tuimsg
 COPY --from=builder /work/target/release/tuimessager-server /usr/local/bin/tuimessager-server
-EXPOSE 3000
+COPY --from=caddy /usr/bin/caddy /usr/local/bin/caddy
+COPY Caddyfile /etc/caddy/Caddyfile
+COPY run.sh /usr/local/bin/run.sh
+EXPOSE 3000 80 443
 VOLUME ["/data"]
 ENV TUIMESSAGER_DATA_DIR=/data TUIMESSAGER_BIND=0.0.0.0:3000
 # NOTE: no HEALTHCHECK here — OCI image format ignores it (hence the build
 # warning). Health checking is defined in compose.yaml / quadlet instead.
-ENTRYPOINT ["/usr/local/bin/tuimessager-server"]
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/run.sh"]

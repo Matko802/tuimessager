@@ -26,11 +26,13 @@ Binaries land in `target/release/` (`tuimessager`, `tuimessager-server`).
 ```sh
 # on the Pi:
 sudo apt install -y podman podman-compose
+echo 'net.ipv4.ip_unprivileged_port_start=80' | sudo tee /etc/sysctl.d/90-rootless-ports.conf
+sudo sysctl --system
 git clone https://github.com/Matko802/tuimessager.git ~/tuimessager
 cd ~/tuimessager && ./podman-build.sh
 ```
 
-LAN only:
+One container holds server + Caddy. LAN only:
 
 ```sh
 podman-compose up -d
@@ -40,7 +42,7 @@ curl http://127.0.0.1:3000/health
 Public with free TLS (forward router ports 443, and 80 unless HTTPS-only, to the Pi; point your DuckDNS domain at your IP):
 
 ```sh
-TUIMESSAGER_DOMAIN=tuimessager.duckdns.org podman-compose --profile public up -d
+TUIMESSAGER_DOMAIN=tuimessager.duckdns.org podman-compose up -d
 curl https://tuimessager.duckdns.org/health
 ```
 
