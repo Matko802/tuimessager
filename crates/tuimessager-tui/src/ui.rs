@@ -3,13 +3,13 @@
 
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
-    style::{Color, Modifier, Style},
+    style::{Color, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap},
     Frame,
 };
 
-use crate::{app::{App, Focus, Popup}, markdown::render_markdown};
+use crate::{app::{App, Focus, Popup}, markdown::{render_markdown, truncate}};
 
 pub fn draw(f: &mut Frame, app: &App) {
     let root = Layout::default()
@@ -74,6 +74,10 @@ fn draw_main(f: &mut Frame, app: &App, area: Rect) {
     }
 }
 
+fn sel_marker(app: &App) -> &str {
+    app.theme.selection_marker_or_default()
+}
+
 fn pane_block(title: &str, focused: bool) -> Block<'_> {
     Block::default()
         .borders(Borders::ALL)
@@ -92,7 +96,7 @@ fn draw_servers(f: &mut Frame, app: &App, area: Rect) {
         .iter()
         .enumerate()
         .map(|(idx, s)| {
-            let marker = if idx == app.server_idx { "▸ " } else { "  " };
+            let marker = if idx == app.server_idx { sel_marker(app) } else { "  " };
             let mut spans = vec![Span::styled(marker, Style::new().fg(Color::Cyan).bold())];
             spans.push(Span::raw(s.name.clone()));
             if s.mentioned {
@@ -116,7 +120,7 @@ fn draw_channels(f: &mut Frame, app: &App, area: Rect) {
         .iter()
         .enumerate()
         .map(|(idx, c)| {
-            let marker = if idx == app.channel_idx { "▸ " } else { "  " };
+            let marker = if idx == app.channel_idx { sel_marker(app) } else { "  " };
             let icon = match c.kind {
                 tuimessager_protocol::ChannelKind::Thread => "🧵",
                 tuimessager_protocol::ChannelKind::ForumPost => "📝",
@@ -157,7 +161,7 @@ fn draw_members(f: &mut Frame, app: &App, area: Rect) {
                 tuimessager_protocol::Presence::Dnd => Span::styled("● ", Style::new().fg(Color::Red)),
                 tuimessager_protocol::Presence::Offline => Span::styled("○ ", Style::new().dim()),
             };
-            let marker = if idx == app.member_idx { "▸ " } else { "  " };
+            let marker = if idx == app.member_idx { sel_marker(app) } else { "  " };
             let mut item = ListItem::new(Line::from(vec![
                 Span::styled(marker, Style::new().fg(Color::Cyan).bold()),
                 dot,
@@ -183,7 +187,7 @@ fn draw_messages(f: &mut Frame, app: &App, area: Rect) {
     let start = app.msg_scroll;
     for (idx, m) in app.messages.iter().enumerate().skip(start) {
         let selected = idx == app.msg_idx && app.focus == Focus::Messages;
-        let marker = if selected { "▸ " } else { "  " };
+        let marker = if selected { sel_marker(app) } else { "  " };
         let time = app.format_time(&m.created_at);
         let edited = if m.edited_at.is_some() { " (edited)" } else { "" };
         let pinned = if m.pinned { " 📌" } else { "" };
@@ -291,7 +295,7 @@ fn draw_popup(f: &mut Frame, app: &App) {
                 .enumerate()
                 .map(|(vis, (_, ci))| {
                     let c = &app.channels[ci];
-                    let marker = if vis == app.popup_idx { "▸ " } else { "  " };
+                    let marker = if vis == app.popup_idx { sel_marker(app) } else { "  " };
                     Line::from(vec![
                         Span::styled(marker, Style::new().fg(Color::Cyan).bold()),
                         Span::raw(format!("#{}  {}", c.name, c.topic.clone().unwrap_or_default())),
@@ -308,11 +312,11 @@ fn draw_popup(f: &mut Frame, app: &App) {
                 .take(20)
                 .enumerate()
                 .map(|(i, n)| {
-                    let marker = if i == app.popup_idx { "▸ " } else { "  " };
+                    let marker = if i == app.popup_idx { sel_marker(app) } else { "  " };
                     Line::from(vec![
                         Span::styled(marker, Style::new().fg(Color::Cyan).bold()),
                         Span::styled(format!("{}: ", n.message.author.display()), Style::new().bold()),
-                        Span::raw(n.message.content.chars().take(80).collect::<String>()),
+                        Span::raw(truncate(&n.message.content, 80)),
                     ])
                 })
                 .collect();
@@ -326,7 +330,7 @@ fn draw_popup(f: &mut Frame, app: &App) {
                 .filter(|(_, e)| e.contains(app.popup_input.trim()) || app.popup_input.trim().is_empty())
                 .enumerate()
                 .map(|(vis, (_, e))| {
-                    let marker = if vis == app.popup_idx { "▸ " } else { "  " };
+                    let marker = if vis == app.popup_idx { sel_marker(app) } else { "  " };
                     Line::from(vec![
                         Span::styled(marker, Style::new().fg(Color::Cyan).bold()),
                         Span::raw(e.to_string()),
@@ -366,7 +370,7 @@ fn draw_confirm(f: &mut Frame, app: &App) {
             ],
         )
     } else {
-        let msg = app.selected_message().map(|m| m.content.chars().take(60).collect::<String>()).unwrap_or_default();
+        let msg = app.selected_message().map(|m| truncate(&m.content, 60)).unwrap_or_default();
         (
             "Confirm",
             vec![
@@ -410,8 +414,4 @@ fn centered(area: Rect, pct_x: u16, pct_y: u16) -> Rect {
             Constraint::Percentage((100 - pct_y) / 2),
         ])
         .split(h[1])[1]
-}
-
-pub fn styled_modifier() -> Modifier {
-    Modifier::BOLD
 }

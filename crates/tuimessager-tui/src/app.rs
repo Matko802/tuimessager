@@ -6,7 +6,7 @@ use chrono::{Local, TimeZone};
 use tuimessager_protocol::*;
 use uuid::Uuid;
 
-use crate::{client::Client, config::AppOptions, markdown::fuzzy_score};
+use crate::{client::Client, config::{AppOptions, Theme}, markdown::fuzzy_score};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Focus {
@@ -77,7 +77,7 @@ pub struct App {
     pub show_servers: bool,
     pub show_channels: bool,
     pub has_more: bool,
-    pub quit: bool,
+    pub theme: Theme,
     /// Message printed after the terminal is restored (e.g. "Logged out").
     pub exit_message: Option<String>,
 }
@@ -112,7 +112,7 @@ impl App {
             show_servers: true,
             show_channels: true,
             has_more: false,
-            quit: false,
+            theme: crate::config::load_theme(),
             exit_message: None,
         }
     }

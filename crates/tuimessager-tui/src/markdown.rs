@@ -77,12 +77,10 @@ fn inline<'a>(s: &'a str) -> Vec<Span<'a>> {
     let mut i = 0;
     let mut plain_start = 0;
 
-    macro_rules! flush_to {
+    macro_rules! flush_plain {
         ($up_to:expr) => {
             if $up_to > plain_start {
-                let chunk = &s[plain_start..$up_to];
-                spans.extend(linkify(chunk));
-                plain_start = $up_to;
+                spans.extend(linkify(&s[plain_start..$up_to]));
             }
         };
     }
@@ -95,7 +93,7 @@ fn inline<'a>(s: &'a str) -> Vec<Span<'a>> {
         let rest = &s[i..];
         if let Some(end) = find_closer(rest, "**") {
             if end > 2 {
-                flush_to!(i);
+                flush_plain!(i);
                 let inner = &rest[2..end];
                 spans.push(Span::styled(inner.to_string(), Style::new().bold()));
                 i += end + 2;
@@ -105,7 +103,7 @@ fn inline<'a>(s: &'a str) -> Vec<Span<'a>> {
         }
         if let Some(end) = find_closer(rest, "~~") {
             if end > 2 {
-                flush_to!(i);
+                flush_plain!(i);
                 let inner = &rest[2..end];
                 spans.push(Span::styled(
                     inner.to_string(),
@@ -118,7 +116,7 @@ fn inline<'a>(s: &'a str) -> Vec<Span<'a>> {
         }
         if let Some(end) = find_closer(rest, "__") {
             if end > 2 {
-                flush_to!(i);
+                flush_plain!(i);
                 let inner = &rest[2..end];
                 spans.push(Span::styled(inner.to_string(), Style::new().underlined()));
                 i += end + 2;
@@ -128,7 +126,7 @@ fn inline<'a>(s: &'a str) -> Vec<Span<'a>> {
         }
         if rest.starts_with('`') {
             if let Some(end) = rest[1..].find('`') {
-                flush_to!(i);
+                flush_plain!(i);
                 let inner = &rest[1..1 + end];
                 spans.push(Span::styled(
                     inner.to_string(),
@@ -142,7 +140,7 @@ fn inline<'a>(s: &'a str) -> Vec<Span<'a>> {
         // *italic* (single, avoid **)
         if rest.starts_with('*') && !rest.starts_with("**") {
             if let Some(end) = rest[1..].find('*') {
-                flush_to!(i);
+                flush_plain!(i);
                 let inner = &rest[1..1 + end];
                 spans.push(Span::styled(inner.to_string(), Style::new().italic()));
                 i += 1 + end + 1;
@@ -153,7 +151,7 @@ fn inline<'a>(s: &'a str) -> Vec<Span<'a>> {
         // Advance by one char (UTF-8 safe for emoji).
         i += rest.chars().next().map(|c| c.len_utf8()).unwrap_or(1);
     }
-    flush_to!(s.len());
+    flush_plain!(s.len());
     if spans.is_empty() {
         spans.push(Span::raw(""));
     }

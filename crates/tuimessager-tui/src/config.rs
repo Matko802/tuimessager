@@ -140,6 +140,22 @@ pub fn load_options() -> AppOptions {
     toml::from_str(&text).unwrap_or_default()
 }
 
+pub fn load_keymap() -> Keymap {
+    let path = config_dir().join("keymap.toml");
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return Keymap::default();
+    };
+    toml::from_str(&text).unwrap_or_default()
+}
+
+pub fn load_theme() -> Theme {
+    let path = config_dir().join("theme.toml");
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return Theme::default();
+    };
+    toml::from_str(&text).unwrap_or_default()
+}
+
 pub fn load_token(options: &AppOptions) -> Option<String> {
     if let Ok(t) = std::env::var("TUIMESSAGER_TOKEN") {
         if !t.trim().is_empty() {

@@ -20,10 +20,6 @@ impl Client {
         }
     }
 
-    pub fn token(&self) -> &str {
-        &self.token
-    }
-
     pub fn ws_url(&self) -> String {
         let http = self.base.clone();
         let ws = http

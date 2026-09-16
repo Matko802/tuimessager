@@ -59,7 +59,8 @@ async fn main() -> anyhow::Result<()> {
     });
 
     let mut terminal = setup_terminal()?;
-    let res = run(&mut terminal, &mut app, &mut rx).await;
+    let leader = parse_leader(&config::load_keymap().leader);
+    let res = run(&mut terminal, &mut app, &mut rx, leader).await;
     restore_terminal(&mut terminal)?;
     if let Some(msg) = app.exit_message {
         println!("{msg}");
@@ -156,6 +157,7 @@ async fn run(
     terminal: &mut Terminal<CrosstermBackend<Stdout>>,
     app: &mut App,
     rx: &mut tokio::sync::mpsc::UnboundedReceiver<WsEvent>,
+    leader: KeyCode,
 ) -> anyhow::Result<()> {
     let mut leader_pending = false;
     loop {
@@ -168,15 +170,26 @@ async fn run(
             continue;
         }
         let Event::Key(key) = event::read()? else { continue };
-        if handle_key(app, key, &mut leader_pending).await? {
+        if handle_key(app, key, &mut leader_pending, leader).await? {
             break;
         }
     }
     Ok(())
 }
 
+/// Parse the `leader` value from keymap.toml (default "space", Concord parity).
+fn parse_leader(s: &str) -> KeyCode {
+    match s.trim().to_lowercase().as_str() {
+        "space" | " " => KeyCode::Char(' '),
+        "tab" => KeyCode::Tab,
+        "enter" => KeyCode::Enter,
+        s if s.chars().count() == 1 => KeyCode::Char(s.chars().next().unwrap_or(' ')),
+        _ => KeyCode::Char(' '),
+    }
+}
+
 /// Returns true when the app should quit.
-async fn handle_key(app: &mut App, key: KeyEvent, leader_pending: &mut bool) -> anyhow::Result<bool> {
+async fn handle_key(app: &mut App, key: KeyEvent, leader_pending: &mut bool, leader: KeyCode) -> anyhow::Result<bool> {
     // Composer text input captures most keys.
     if app.composer_open {
         match (key.code, key.modifiers) {
@@ -271,7 +284,7 @@ async fn handle_key(app: &mut App, key: KeyEvent, leader_pending: &mut bool) -> 
         }
     }
 
-    // Leader key (default Space, Concord parity).
+    // Leader key (configurable via keymap.toml, default Space, Concord parity).
     if *leader_pending {
         *leader_pending = false;
         match key.code {
@@ -307,7 +320,7 @@ async fn handle_key(app: &mut App, key: KeyEvent, leader_pending: &mut bool) -> 
     }
 
     match (key.code, key.modifiers) {
-        (KeyCode::Char(' '), _) => {
+        (code, _) if code == leader => {
             *leader_pending = true;
             return Ok(false);
         }
