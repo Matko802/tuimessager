@@ -132,7 +132,7 @@ also free, no ports or DNS needed (see previous section).
 ### Raspberry Pi 5 walkthrough (Raspberry Pi OS + Podman)
 
 Assumes the Pi is at home on your LAN and your domain is
-`tuidns.duckdns.org`.
+`tuimessager.duckdns.org`.
 
 1. **Clone the repo on the Pi** (from your PC it is already pushed to GitHub):
    ```sh
@@ -157,29 +157,29 @@ Assumes the Pi is at home on your LAN and your domain is
    ```sh
    cd ~/tuimessager
    ./podman-build.sh
-   TUIMESSAGER_DOMAIN=tuidns.duckdns.org podman-compose --profile public up -d
+   TUIMESSAGER_DOMAIN=tuimessager.duckdns.org podman-compose --profile public up -d
    ```
    First request triggers the Let's Encrypt certificate (takes ~30s).
 6. **Verify from outside your LAN** (phone on mobile data, wifi off):
    ```sh
-   curl https://tuidns.duckdns.org/health   # -> ok
+   curl https://tuimessager.duckdns.org/health   # -> ok
    ```
 7. **Create your account, then lock registration:**
    ```sh
-   curl -X POST https://tuidns.duckdns.org/api/v1/register \
+   curl -X POST https://tuimessager.duckdns.org/api/v1/register \
      -H 'Content-Type: application/json' \
      -d '{"name":"alice","password":"a-strong-password"}'
    ```
    Edit `compose.yaml` → `TUIMESSAGER_ALLOW_REGISTRATION: "false"`, then
-   `TUIMESSAGER_DOMAIN=tuidns.duckdns.org podman-compose --profile public up -d`.
+   `TUIMESSAGER_DOMAIN=tuimessager.duckdns.org podman-compose --profile public up -d`.
 8. **Connect the TUI from anywhere:**
    ```sh
-   TUIMESSAGER_URL=https://tuidns.duckdns.org tuimessager
+   TUIMESSAGER_URL=https://tuimessager.duckdns.org tuimessager
    ```
 
 Pi running NixOS instead? Add the flake input + overlay (same as fish-flake
 on PC), import `inputs.tuimessager.nixosModules.default`, and set
-`services.tuimessager = { enable = true; domain = "tuidns.duckdns.org";
+`services.tuimessager = { enable = true; domain = "tuimessager.duckdns.org";
 acmeEmail = "you@example.com"; allowRegistration = false; };`, then
 `nixos-rebuild switch`.
 

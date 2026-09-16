@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # DuckDNS dynamic-IP updater (free) for tuimessager.
-# Keeps e.g. tuidns.duckdns.org pointed at your home public IP.
+# Keeps e.g. tuimessager.duckdns.org pointed at your home public IP.
 #
 # Setup:
 #   1. Log in at https://www.duckdns.org and copy your account token.
