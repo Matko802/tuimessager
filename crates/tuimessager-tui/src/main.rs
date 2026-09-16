@@ -12,7 +12,7 @@ use app::{App, Focus, Popup};
 use client::Client;
 use config::AppOptions;
 use crossterm::{
-    event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
+    event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
@@ -170,6 +170,11 @@ async fn run(
             continue;
         }
         let Event::Key(key) = event::read()? else { continue };
+        // Ignore key-release events: some terminals report them, and acting
+        // on them types/activates everything twice.
+        if key.kind == KeyEventKind::Release {
+            continue;
+        }
         if handle_key(app, key, &mut leader_pending, leader).await? {
             break;
         }
