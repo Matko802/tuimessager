@@ -230,6 +230,11 @@ impl App {
     pub fn apply_event(&mut self, ev: WsEvent) {
         match ev {
             WsEvent::MessageCreated { message } => {
+                // The sender already appended this message optimistically on
+                // submit; the broadcast echo would otherwise show it twice.
+                if self.messages.iter().any(|m| m.id == message.id) {
+                    return;
+                }
                 if self.selected_channel().map(|c| c.id) == Some(message.channel_id) {
                     self.messages.push(message);
                     if self.focus == Focus::Messages {
@@ -294,5 +299,63 @@ impl App {
         } else {
             local.format("%I:%M %p").to_string()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+
+    fn test_app() -> App {
+        let me = User {
+            id: Uuid::new_v4(),
+            name: "alice".to_string(),
+            display_name: None,
+            avatar_url: None,
+            bot: false,
+            created_at: Utc::now(),
+        };
+        App::new(AppOptions::default(), Client::new("http://127.0.0.1:3000", "tok"), me)
+    }
+
+    fn test_message(channel_id: Uuid, author: User) -> Message {
+        Message {
+            id: Uuid::new_v4(),
+            channel_id,
+            author,
+            content: "hi".to_string(),
+            created_at: Utc::now(),
+            edited_at: None,
+            reply_to: None,
+            pinned: false,
+            reactions: vec![],
+            attachments: vec![],
+            embeds: vec![],
+        }
+    }
+
+    #[test]
+    fn broadcast_echo_of_own_message_is_not_duplicated() {
+        let mut app = test_app();
+        let channel = Uuid::new_v4();
+        app.channels = vec![Channel {
+            id: channel,
+            server_id: None,
+            parent_id: None,
+            name: "general".to_string(),
+            topic: None,
+            kind: ChannelKind::Text,
+            position: 0,
+            unread_count: 0,
+            mentioned: false,
+            muted: false,
+        }];
+        // Optimistic local append on submit…
+        let msg = test_message(channel, app.me.clone());
+        app.messages.push(msg.clone());
+        // …then the server broadcast echo must not add it again.
+        app.apply_event(WsEvent::MessageCreated { message: msg });
+        assert_eq!(app.messages.len(), 1);
     }
 }
