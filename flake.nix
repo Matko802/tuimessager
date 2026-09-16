@@ -83,8 +83,8 @@
         #   nixpkgs.overlays = [ tuimessager.overlays.default ];
         # then `tuimessager` (TUI) and `tuimessager-server` are in pkgs.
         overlays.default = final: _prev: {
-          tuimessager = self.packages.${final.system}.tuimessager-tui;
-          tuimessager-server = self.packages.${final.system}.tuimessager-server;
+          tuimessager = self.packages.${final.stdenv.hostPlatform.system}.tuimessager-tui;
+          tuimessager-server = self.packages.${final.stdenv.hostPlatform.system}.tuimessager-server;
         };
 
         # NixOS module for the server (PC or Pi running NixOS).
@@ -95,7 +95,7 @@
               enable = lib.mkEnableOption "tuimessager self-hosted server";
               package = lib.mkOption {
                 type = lib.types.package;
-                default = self.packages.${pkgs.system}.tuimessager-server;
+                default = self.packages.${pkgs.stdenv.hostPlatform.system}.tuimessager-server;
                 description = "Server package to run.";
               };
               bind = lib.mkOption {
