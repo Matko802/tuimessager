@@ -1,0 +1,12 @@
+[package]
+name = "tuimessager-protocol"
+version = "0.1.0"
+edition = "2021"
+description = "Shared protocol types for tuimessager (Discord-free, self-hosted)"
+license = "GPL-3.0-only"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }

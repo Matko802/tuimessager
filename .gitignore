@@ -1,0 +1,10 @@
+/target/
+result*
+.direnv/
+.envrc.local
+*.db*
+*.db-journal
+*.db-wal
+*.db-shm
+/data/
+data/

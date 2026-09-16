@@ -1,0 +1,33 @@
+[package]
+name = "tuimessager-server"
+version = "0.1.0"
+edition = "2021"
+description = "Self-hosted tuimessager server (Podman-ready, RPi5 aarch64 + x86_64)"
+license = "GPL-3.0-only"
+
+[[bin]]
+name = "tuimessager-server"
+path = "src/main.rs"
+
+[dependencies]
+tuimessager-protocol = { path = "../tuimessager-protocol" }
+axum = { version = "0.8", features = ["ws"] }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+argon2 = "0.5"
+rand = "0.8"
+futures = "0.3"
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+tempfile = "3"

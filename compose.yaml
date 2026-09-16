@@ -1,0 +1,60 @@
+# Podman Compose for tuimessager-server.
+# Same file works on PC (x86_64) and Raspberry Pi 5 (aarch64) —
+# just build/pull the matching arch image.
+#
+# PC:      podman compose up -d
+# RPi 5:   podman compose up -d   (with image built --arch arm64, or nix image)
+name: tuimessager
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Containerfile.server
+    image: localhost/tuimessager-server:latest
+    container_name: tuimessager-server
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      TUIMESSAGER_BIND: "0.0.0.0:3000"
+      TUIMESSAGER_DATA_DIR: /data
+      # Set to "false" after creating your first account.
+      TUIMESSAGER_ALLOW_REGISTRATION: "true"
+      RUST_LOG: tuimessager_server=info
+    volumes:
+      - tuimsg-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/3000 && echo -e 'GET /health HTTP/1.0\\r\\n\\r\\n' >&3 && head -c 2 <&3 | grep -q OK"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  # Free public HTTPS: Caddy fetches a Let's Encrypt cert for your domain
+  # automatically ($0, auto-renewed). Only needed for internet exposure —
+  # skip it for LAN-only / Tailscale setups.
+  # Enable with:  TUIMESSAGER_DOMAIN=chat.example.com podman compose --profile public up -d
+  caddy:
+    image: docker.io/library/caddy:2-alpine
+    container_name: tuimessager-caddy
+    restart: unless-stopped
+    profiles: ["public"]
+    depends_on:
+      server:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    environment:
+      TUIMESSAGER_DOMAIN: ${TUIMESSAGER_DOMAIN:?set TUIMESSAGER_DOMAIN to your domain to use the public profile}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+
+volumes:
+  tuimsg-data:
+  caddy-data:
+  caddy-config:

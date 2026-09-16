@@ -1,0 +1,21 @@
+# tuimessager-server — multi-arch (amd64 = PC, arm64 = Raspberry Pi 5)
+# Podman: podman build -f Containerfile.server -t tuimessager-server .
+ARG RUST_VERSION=1.90
+FROM docker.io/library/rust:${RUST_VERSION}-slim-bookworm AS builder
+WORKDIR /work
+# SQLite bundled build needs a C toolchain.
+RUN apt-get update && apt-get install -y --no-install-recommends pkg-config build-essential ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY Cargo.toml Cargo.lock* ./
+COPY crates ./crates
+RUN cargo build --release -p tuimessager-server --locked || cargo build --release -p tuimessager-server
+
+FROM docker.io/library/debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates sqlite3 && rm -rf /var/lib/apt/lists/* \
+    && useradd -m -u 10000 tuimsg
+USER tuimsg
+COPY --from=builder /work/target/release/tuimessager-server /usr/local/bin/tuimessager-server
+EXPOSE 3000
+VOLUME ["/data"]
+ENV TUIMESSAGER_DATA_DIR=/data TUIMESSAGER_BIND=0.0.0.0:3000
+HEALTHCHECK --interval=30s --timeout=3s CMD ["sh", "-c", "exec 3<>/dev/tcp/127.0.0.1/3000 && echo -e 'GET /health HTTP/1.0\\r\\n\\r\\n' >&3 && head -c 2 <&3 | grep -q OK"]
+ENTRYPOINT ["/usr/local/bin/tuimessager-server"]

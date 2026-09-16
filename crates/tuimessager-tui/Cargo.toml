@@ -1,0 +1,32 @@
+[package]
+name = "tuimessager-tui"
+version = "0.1.0"
+edition = "2021"
+description = "Concord-style TUI client for the self-hosted tuimessager server (no Discord API)"
+license = "GPL-3.0-only"
+
+[[bin]]
+name = "tuimessager"
+path = "src/main.rs"
+
+[dependencies]
+tuimessager-protocol = { path = "../tuimessager-protocol" }
+ratatui = "0.30"
+crossterm = { version = "0.29", features = ["event-stream"] }
+tokio = { version = "1", features = ["full"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-manual-roots"] }
+tokio-tungstenite = { version = "0.26", features = ["connect", "rustls-tls-native-roots"] }
+futures-util = "0.3"
+toml = "1"
+dirs = "6"
+unicode-width = "0.2"
+unicode-segmentation = "1.12"
+syntect = { version = "5", default-features = false, features = ["default-fancy"] }
+notify-rust = "4"
+url = "2"

@@ -1,0 +1,23 @@
+# Quadlet for Podman systemd (PC and Raspberry Pi 5 identical except Arch).
+# Install: cp quadlet/tuimessager-server.* ~/.config/containers/systemd/ && systemctl --user daemon-reload
+[Unit]
+Description=tuimessager self-hosted server
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=localhost/tuimessager-server.latest
+ContainerName=tuimessager-server
+PublishPort=3000:3000
+Volume=tuimessager-data.volume:/data:U
+Environment=TUIMESSAGER_DATA_DIR=/data
+Environment=TUIMESSAGER_ALLOW_REGISTRATION=true
+HealthCmd=sh -c "exec 3<>/dev/tcp/127.0.0.1/3000 && echo -e 'GET /health HTTP/1.0\r\n\r\n' >&3 && head -c 2 <&3 | grep -q OK"
+HealthInterval=30s
+
+[Service]
+Restart=always
+TimeoutStartSec=60
+
+[Install]
+WantedBy=default.target

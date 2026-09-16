@@ -1,0 +1,16 @@
+# Caddy reverse proxy for tuimessager — 100% free automatic TLS via Let's Encrypt.
+#
+# The domain is injected from the TUIMESSAGER_DOMAIN env var (see compose.yaml).
+# Caddy obtains and renews the certificate on first request; nothing to pay,
+# nothing to renew by hand. HTTP is redirected to HTTPS automatically.
+{$TUIMESSAGER_DOMAIN} {
+	reverse_proxy server:3000
+
+	# Don't leak the backend version; small hardening header set.
+	header {
+		-Server
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy no-referrer
+	}
+}
