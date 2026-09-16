@@ -132,10 +132,10 @@ also free, no ports or DNS needed (see previous section).
 Assumes the Pi is at home on your LAN and your domain is
 `tuidns.duckdns.org`.
 
-1. **Copy the project to the Pi** (from your PC):
+1. **Clone the repo on the Pi** (from your PC it is already pushed to GitHub):
    ```sh
-   scp -r --exclude=target /mnt/ssd/My-Files/Projects/tuimessager pi@<pi-lan-ip>:~/tuimessager
-   # or: push to GitHub once, then on the Pi: git clone <your-repo>
+   # on the Pi:
+   git clone https://github.com/Matko802/tuimessager.git ~/tuimessager
    ```
 2. **On the Pi — install Podman + compose:**
    ```sh
