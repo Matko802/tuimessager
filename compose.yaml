@@ -25,10 +25,11 @@ services:
     volumes:
       - tuimsg-data:/data
     healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/3000 && echo -e 'GET /health HTTP/1.0\\r\\n\\r\\n' >&3 && head -c 2 <&3 | grep -q OK"]
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/3000 && printf 'GET /health HTTP/1.0\\r\\n\\r\\n' >&3 && head -n 1 <&3 | grep -q ' 200 '"]
       interval: 30s
       timeout: 3s
       retries: 3
+      start_period: 10s
 
   # Free public HTTPS: Caddy fetches a Let's Encrypt cert for your domain
   # automatically ($0, auto-renewed). Only needed for internet exposure —

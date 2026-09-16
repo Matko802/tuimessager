@@ -12,7 +12,7 @@ PublishPort=3000:3000
 Volume=tuimessager-data.volume:/data:U
 Environment=TUIMESSAGER_DATA_DIR=/data
 Environment=TUIMESSAGER_ALLOW_REGISTRATION=true
-HealthCmd=sh -c "exec 3<>/dev/tcp/127.0.0.1/3000 && echo -e 'GET /health HTTP/1.0\r\n\r\n' >&3 && head -c 2 <&3 | grep -q OK"
+HealthCmd=sh -c "exec 3<>/dev/tcp/127.0.0.1/3000 && printf 'GET /health HTTP/1.0\r\n\r\n' >&3 && head -n 1 <&3 | grep -q ' 200 '"
 HealthInterval=30s
 
 [Service]
